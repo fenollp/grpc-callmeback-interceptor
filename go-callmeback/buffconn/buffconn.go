@@ -2,13 +2,12 @@ package buffconn
 
 import (
     "context"
-    "errors"
-    "testing"
+    "net"
     "time"
 
-    "github.com/stretchr/testify/require"
+    "github.com/fenollp/grpc-callmeback-interceptor/go-callmeback"
+    "github.com/grpc-ecosystem/go-grpc-middleware"
     "google.golang.org/grpc"
-    "google.golang.org/grpc/metadata"
     "google.golang.org/grpc/test/bufconn"
 )
 
@@ -20,7 +19,7 @@ const (
 
 type mockCMBer struct{}
 
-func (*mockCMBer) PleaseComeAgain(ctx context.Context, c Context) (time.Duration, error) {
+func (*mockCMBer) PleaseComeAgain(ctx context.Context, c callmeback.Context) (time.Duration, error) {
     return pause, nil
 }
 
@@ -28,16 +27,22 @@ var lis *bufconn.Listener
 
 func init() {
     lis = bufconn.Listen(bufSize)
-    s := grpc.NewServer()
-    pb.RegisterEchoServer(s, &server{})
+    s := grpc.NewServer(
+        grpc_middleware.WithUnaryServerChain(
+            callmeback.UnaryServerInterceptor(&mockCMBer{}),
+        ),
+    )
+    RegisterEchoServer(s, &server{})
     go func() {
         if err := s.Serve(lis); err != nil {
-            log.Fatalf("Server exited with error: %v", err)
+            panic(err)
         }
     }()
 }
 
-func bufDialer(context.Context, string) (net.Conn, error) { return lis.Dial() }
+func bufDialer(context.Context, string) (net.Conn, error) {
+    return lis.Dial()
+}
 
 type server struct{}
 

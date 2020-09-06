@@ -1,4 +1,4 @@
-package callmeback
+package callmeback_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fenollp/grpc-callmeback-interceptor/go-callmeback"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -15,38 +16,32 @@ const (
 	pause      = 1 * time.Second
 )
 
+var wentThroughHere = false
+
 type mockCMBer struct{}
 
-func (*mockCMBer) PleaseComeAgain(ctx context.Context, c Context) (time.Duration, error) {
+var _ callmeback.CallMeBacker = &mockCMBer{}
+
+func (*mockCMBer) PleaseComeAgain(ctx context.Context, c callmeback.Context) (time.Duration, error) {
+	wentThroughHere = true
 	return pause, nil
 }
 
 func TestUnaryServerInterceptor_CallMeBackFail(t *testing.T) {
-	interceptor := UnaryServerInterceptor(&mockCMBer{})
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return nil, errors.New(errMsgFake)
+	require.False(t, wentThroughHere)
+
+	interceptor := callmeback.UnaryServerInterceptor(&mockCMBer{})
+	handler := func(ctx context.Context, req interface{}) (rep interface{}, err error) {
+		require.False(t, wentThroughHere)
+		err = errors.New(errMsgFake)
+		return
 	}
+
 	info := &grpc.UnaryServerInfo{FullMethod: "/pkg.Svc/FakeMethod/"}
 	ctx := context.Background()
 	rep, err := interceptor(ctx, nil, info, handler)
 	require.EqualError(t, err, errMsgFake)
 	require.Nil(t, rep)
-}
 
-// func TestUnaryServerInterceptor_CallMeBackPass(t *testing.T) {
-// 	interceptor := UnaryServerInterceptor(&mockCMBer{})
-// 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-// 		return &struct{}{}, nil
-// 	}
-// 	info := &grpc.UnaryServerInfo{FullMethod: "/pkg.Svc/FakeMethod/"}
-// 	ctx := context.Background()
-// 	rep, err := interceptor(ctx, nil, info, handler)
-// 	require.NoError(t, err)
-// 	require.NotNil(t, rep)
-// 	// md, ok := metadata.FromIncomingContext(ctx)
-// 	md, ok := metadata.FromOutgoingContext(ctx)
-// 	require.True(t, ok)
-// 	pauseFor, err := In(md)
-// 	require.NoError(t, err)
-// 	require.Equal(t, pauseFor, pause)
-// }
+	require.False(t, wentThroughHere)
+}
