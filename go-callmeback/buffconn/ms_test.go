@@ -3,7 +3,6 @@ package buffconn_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/fenollp/grpc-callmeback-interceptor/go-callmeback"
 	"github.com/fenollp/grpc-callmeback-interceptor/go-callmeback/buffconn"
@@ -12,7 +11,9 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-func TestUnaryServerInterceptor_CallMeBackPass(t *testing.T) {
+func TestUnaryServerInterceptor_CallMeBackMSPass(t *testing.T) {
+	callmeback.Trailer = "x-pleasecomeagain-ms"
+
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(buffconn.NewDialer), grpc.WithInsecure())
 	require.NoError(t, err)
@@ -27,7 +28,5 @@ func TestUnaryServerInterceptor_CallMeBackPass(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, rep.Message, msg)
 
-	pauseFor, err := callmeback.In(trailer)
-	require.NoError(t, err)
-	require.Equal(t, pauseFor, 1*time.Second)
+	require.Equal(t, []string{"1000"}, trailer.Get(callmeback.Trailer))
 }
