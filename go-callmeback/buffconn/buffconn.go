@@ -1,3 +1,4 @@
+// Package buffconn is only a test packge for go-callmeback.
 package buffconn
 
 import (
@@ -40,7 +41,8 @@ func init() {
 	}()
 }
 
-func bufDialer(context.Context, string) (net.Conn, error) {
+// NewDialer is to be used with grpc.WithContextDialer
+func NewDialer(context.Context, string) (net.Conn, error) {
 	return lis.Dial()
 }
 

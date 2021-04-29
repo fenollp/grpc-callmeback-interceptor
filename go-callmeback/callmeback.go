@@ -2,6 +2,8 @@ package callmeback
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -23,12 +25,12 @@ type CallMeBacker interface {
 
 // UnaryServerInterceptor returns a new unary server interceptor that instructs the client to call again.
 func UnaryServerInterceptor(callmebacker CallMeBacker) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (rep interface{}, err error) {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
-		rep, err = handler(ctx, req)
+		rep, err := handler(ctx, req)
 		end := time.Since(start)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		c := Context{
@@ -37,13 +39,22 @@ func UnaryServerInterceptor(callmebacker CallMeBacker) grpc.UnaryServerIntercept
 		}
 		var d time.Duration
 		if d, err = callmebacker.PleaseComeAgain(ctx, c); err != nil {
-			rep = nil
-			return
+			return nil, err
 		}
 
-		md := metadata.Pairs(Trailer, d.String())
-		err = grpc.SetTrailer(ctx, md)
-		return
+		var dstr string
+		switch {
+		case strings.HasSuffix(Trailer, "-ms"):
+			dstr = strconv.FormatInt(int64(d/time.Millisecond), 10)
+		default:
+			dstr = d.String()
+		}
+
+		md := metadata.Pairs(Trailer, dstr)
+		if err = grpc.SetTrailer(ctx, md); err != nil {
+			return nil, err
+		}
+		return rep, nil
 	}
 }
 
